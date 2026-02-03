@@ -71,6 +71,8 @@
  * functions.
  */
 #define VM_FLAG_READONLY		BIT(4)
+/* Tags TA mapping of protected memory */
+#define VM_FLAG_PROTMEM 		BIT(5)
 
 /*
  * Set of flags used by tee_mmu_is_vbuf_inside_ta_private() and

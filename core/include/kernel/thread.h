@@ -403,6 +403,22 @@ void *thread_rpc_shm_cache_alloc(enum thread_shm_cache_user user,
 				 enum thread_shm_type shm_type,
 				 size_t size, struct mobj **mobj);
 
+/**
+ * Borrow a physical memory from non-secure world, which can be registered
+ * as secure memory.
+ *
+ * @size:	size in bytes of payload buffer
+ *
+ * @returns	mobj that describes allocated buffer or NULL on error
+ */
+struct mobj *thread_rpc_protmem_alloc(size_t size);
+
+/**
+ * Return physical memory previously allocated with
+ * thread_rpc_protmem_alloc() to non-secure world.
+ */
+void thread_rpc_protmem_free(uint64_t cookie);
+
 #endif /*__ASSEMBLER__*/
 
 #endif /*__KERNEL_THREAD_H*/

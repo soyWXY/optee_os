@@ -14,6 +14,7 @@
 #include <kernel/tpm.h>
 #include <kernel/user_access.h>
 #include <kernel/user_mode_ctx.h>
+#include <kernel/thread.h>
 #include <mm/file.h>
 #include <mm/fobj.h>
 #include <mm/vm.h>
@@ -24,6 +25,7 @@
 #include <tee_api_defines.h>
 #include <tee/tee_supp_plugin_rpc.h>
 #include <util.h>
+#include <optee_rpc_cmd.h>
 
 static unsigned int system_pnum;
 
@@ -346,6 +348,93 @@ static TEE_Result system_supp_plugin_invoke(uint32_t param_types,
 	return res;
 }
 
+static TEE_Result system_protmem_alloc(struct user_mode_ctx *uctx,
+				uint32_t param_types,
+				TEE_Param params[TEE_NUM_PARAMS])
+{
+	uint32_t exp_pt = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INPUT,
+					  TEE_PARAM_TYPE_VALUE_OUTPUT,
+					  TEE_PARAM_TYPE_NONE,
+					  TEE_PARAM_TYPE_NONE);
+	uint32_t prot = TEE_MATTR_URW | TEE_MATTR_PRW;
+	TEE_Result res = TEE_ERROR_GENERIC;
+	struct mobj *mobj = NULL;
+	uint32_t vm_flags = VM_FLAG_PROTMEM;
+	size_t num_bytes = 0;
+	vaddr_t va = 0;
+
+	if (exp_pt != param_types)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	num_bytes = params[0].value.a;
+	if (num_bytes % SMALL_PAGE_SIZE)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	mobj = thread_rpc_protmem_alloc(num_bytes);
+	if (!mobj)
+		return TEE_ERROR_OUT_OF_MEMORY;
+	res = vm_map(uctx, &va, num_bytes, prot, vm_flags, mobj, 0);
+	mobj_put(mobj);
+	if (!res)
+		reg_pair_from_64(va, &params[1].value.a, &params[1].value.b);
+	
+	return res;
+}
+
+static TEE_Result system_protmem_free(struct user_mode_ctx *uctx,
+				uint32_t param_types,
+				TEE_Param params[TEE_NUM_PARAMS])
+{
+	uint32_t exp_pt = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INPUT,
+					  TEE_PARAM_TYPE_NONE,
+					  TEE_PARAM_TYPE_NONE,
+					  TEE_PARAM_TYPE_NONE);
+	TEE_Result res = TEE_SUCCESS;
+	uint32_t vm_flags = 0;
+	vaddr_t end_va = 0;
+	vaddr_t va = 0;
+	/*
+	 * set to a huge value so that vm_get_mobj() will always return size
+	 * of the region.
+	 */
+	size_t sz = SIZE_MAX & ~SMALL_PAGE_MASK;
+	struct mobj *mobj = NULL;
+	uint16_t _1 = 0;
+	size_t _2 = 0;
+	uint64_t cookie = 0;
+
+	if (exp_pt != param_types)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	va = reg_pair_to_64(params[0].value.a, params[0].value.b);
+
+	/* acquire mobj cookie without holding mobj's ownership */
+	mobj = vm_get_mobj(uctx, va, &sz, &_1, &_2);
+	if (!mobj)
+		return TEE_ERROR_BAD_PARAMETERS;
+	cookie = mobj_get_cookie(mobj);
+	mobj_put(mobj);
+
+	/*
+	 * Check if [va, va + sz) is a whole region acquired via
+	 * system_protmem_alloc()
+	 */
+	if (!vm_region_match(uctx, va, sz))
+		return TEE_ERROR_BAD_PARAMETERS;
+	res = vm_get_flags(uctx, va, sz, &vm_flags);
+	if (res)
+		return res;
+	if (vm_flags != VM_FLAG_PROTMEM)
+		return TEE_ERROR_ACCESS_DENIED;
+
+	res = vm_unmap(uctx, va, sz);
+	if (res)
+		return res;
+
+	thread_rpc_protmem_free(cookie);
+	return TEE_SUCCESS;
+}
+
 static TEE_Result open_session(uint32_t param_types __unused,
 			       TEE_Param params[TEE_NUM_PARAMS] __unused,
 			       void **sess_ctx __unused)
@@ -386,6 +475,10 @@ static TEE_Result invoke_command(void *sess_ctx __unused, uint32_t cmd_id,
 		return system_get_tpm_event_log(param_types, params);
 	case PTA_SYSTEM_SUPP_PLUGIN_INVOKE:
 		return system_supp_plugin_invoke(param_types, params);
+	case PTA_SYSTEM_PROTMEM_ALLOC:
+		return system_protmem_alloc(uctx, param_types, params);
+	case PTA_SYSTEM_PROTMEM_FREE:
+		return system_protmem_free(uctx, param_types, params);
 	default:
 		break;
 	}

@@ -97,4 +97,6 @@ void vm_set_ctx(struct ts_ctx *ctx);
 
 struct mobj *vm_get_mobj(struct user_mode_ctx *uctx, vaddr_t va, size_t *len,
 			 uint16_t *prot, size_t *offs);
+
+bool vm_region_match(struct user_mode_ctx *uctx, vaddr_t va, size_t len);
 #endif /*__MM_VM_H*/

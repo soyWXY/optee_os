@@ -1345,3 +1345,20 @@ struct mobj *vm_get_mobj(struct user_mode_ctx *uctx, vaddr_t va, size_t *len,
 	*prot = r->attr & TEE_MATTR_PROT_MASK;
 	return mobj_get(r->mobj);
 }
+
+bool vm_region_match(struct user_mode_ctx *uctx, vaddr_t va, size_t len)
+{
+	struct vm_region *r = NULL;
+
+	if (!len || ((len | va) & SMALL_PAGE_MASK))
+		return false;
+
+	r = find_vm_region(&uctx->vm_info, va);
+	if (!r)
+		return false;
+
+	if (!va_range_is_contiguous(r, va, len, cmp_region_for_get_prot))
+		return false;
+
+	return r->va == va && r->size == len;
+}

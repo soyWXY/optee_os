@@ -707,3 +707,73 @@ void thread_rpc_free_global_payload(struct mobj *mobj)
 	thread_rpc_free(OPTEE_RPC_SHM_TYPE_GLOBAL, mobj_get_cookie(mobj),
 			mobj);
 }
+
+static struct mobj *get_rpc_protmem_alloc_res(struct optee_msg_arg *arg, size_t size)
+{
+	struct optee_msg_param_tmem *tmem = NULL;
+	struct mobj *mobj = NULL;
+	uint64_t cookie = 0;
+	size_t sz = 0;
+	paddr_t pa = 0;
+
+	if (arg->ret || arg->num_params != 1)
+		goto err;
+
+	if (arg->params[0].attr != OPTEE_MSG_ATTR_TYPE_TMEM_OUTPUT)
+		goto err;
+
+	tmem = &arg->params[0].u.tmem;
+	cookie = READ_ONCE(tmem->shm_ref);
+	pa = READ_ONCE(tmem->buf_ptr);
+	sz = READ_ONCE(tmem->size);
+	if (sz < size)
+		goto err;
+
+	mobj = mobj_protmem_alloc(pa, sz, cookie, MOBJ_USE_CASE_GENERIC_PROT_MEM);
+
+	if (!mobj) {
+		thread_rpc_protmem_free(cookie);
+		goto err;
+	}
+
+	assert(mobj_is_secure(mobj));
+	return mobj;
+err:
+	EMSG("RPC borrowing failed. Non-secure world result: ret=%#"
+	     PRIx32" ret_origin=%#"PRIx32, arg->ret, arg->ret_origin);
+	return NULL;
+}
+
+struct mobj *thread_rpc_protmem_alloc(size_t size)
+{
+	uint32_t rpc_args[THREAD_RPC_NUM_ARGS] = { OPTEE_SMC_RETURN_RPC_CMD };
+	void *arg = NULL;
+	uint64_t carg = 0;
+	struct thread_param param = THREAD_PARAM_VALUE(IN, size, SMALL_PAGE_SIZE, 0);
+	uint32_t ret = get_rpc_arg(OPTEE_RPC_CMD_MEM_BORROW, 1, &param,
+				   &arg, &carg);
+
+	if (ret)
+		return NULL;
+
+	reg_pair_from_64(carg, rpc_args + 1, rpc_args + 2);
+	thread_rpc(rpc_args);
+
+	return get_rpc_protmem_alloc_res(arg, size);
+}
+
+void thread_rpc_protmem_free(uint64_t cookie)
+{
+	uint32_t rpc_args[THREAD_RPC_NUM_ARGS] = { OPTEE_SMC_RETURN_RPC_CMD };
+	void *arg = NULL;
+	uint64_t carg = 0;
+	struct thread_param param = THREAD_PARAM_VALUE(IN, cookie, 0, 0);
+	uint32_t ret = get_rpc_arg(OPTEE_RPC_CMD_MEM_RETURN, 1, &param,
+				   &arg, &carg);
+
+	if (!ret) {
+		reg_pair_from_64(carg, rpc_args + 1, rpc_args + 2);
+		thread_rpc(rpc_args);
+	}
+
+}

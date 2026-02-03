@@ -219,6 +219,29 @@
 #define OPTEE_RPC_CMD_RPMB_FRAMES	U(24)
 
 /*
+ * xor the input number
+ *
+ * [in/out] value[0].a	    Number
+ */
+#define OPTEE_RPC_CMD_XFORM_NUM		U(30)
+
+/*
+ * Borrow memory
+ *
+ * [in]    value[0].a	    Requested size
+ * [in]    value[0].b	    Required alignment
+ * [out]   memref[0]	    Buffer
+ */
+#define OPTEE_RPC_CMD_MEM_BORROW	U(31)
+
+/*
+ * Return borrowed memory
+ *
+ * [in]     value[0].a	    Value of shared memory reference or cookie
+ */
+#define OPTEE_RPC_CMD_MEM_RETURN	U(32)
+
+/*
  * Definition of protocol for command OPTEE_RPC_CMD_FS
  */
 

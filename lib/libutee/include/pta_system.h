@@ -201,4 +201,25 @@
  */
 #define PTA_SYSTEM_SUPP_PLUGIN_INVOKE	13
 
+/*
+ * Allocate secure memory dynamically
+ *
+ * [in]	    value[0].a: Number of bytes
+ * [in]	    value[0].b: Must be 0
+ * [out]    value[1].a: Address upper 32-bits
+ * [out]    value[1].b: Address lower 32-bits
+ */
+#define PTA_SYSTEM_PROTMEM_ALLOC			16
+
+/* alignment requirement for number of bytes, which equals to SMALL_PAGE_SIZE */
+#define PTA_SYSTEM_PROTMEM_ALLOC_ALIGNMENT		4096
+
+/*
+ * Free secure memory dynamically
+ *
+ * [in]     value[0].a: Address upper 32-bits
+ * [in]     value[0].b: Address lower 32-bits
+ */
+#define PTA_SYSTEM_PROTMEM_FREE				17
+
 #endif /* __PTA_SYSTEM_H */
