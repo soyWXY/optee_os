@@ -1162,6 +1162,10 @@ ifeq (y-y,$(CFG_CORE_PREALLOC_EL0_TBLS)-$(CFG_WITH_PAGER))
 $(error "CFG_WITH_PAGER can't support CFG_CORE_PREALLOC_EL0_TBLS")
 endif
 
+# Give a default sufficient value to prevent OOM when executing large
+# LLM models e.g., stories42M.bin
+CFG_PGT_CACHE_ENTRIES ?= 100
+
 # CFG_PGT_CACHE_ENTRIES defines the number of entries on the memory
 # mapping page table cache used for Trusted Application mapping.
 # CFG_PGT_CACHE_ENTRIES is ignored when CFG_CORE_PREALLOC_EL0_TBLS
