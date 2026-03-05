@@ -215,11 +215,55 @@
 #define PTA_SYSTEM_PROTMEM_ALLOC_ALIGNMENT		4096
 
 /*
+ * this is a simple shared memory prototype only for demo.
+ *
+ * BEWARE that this doesn't take care of cache coherency of the shared memory
+ * and system_shm_open/system_shm_close are thread-unsafe due to shm_table
+ */
+
+/*
  * Free secure memory dynamically
  *
  * [in]     value[0].a: Address upper 32-bits
  * [in]     value[0].b: Address lower 32-bits
  */
 #define PTA_SYSTEM_PROTMEM_FREE				17
+
+/*
+ * Create a shared memory with borrowed REE memory and store corresponding mobj
+ * in system-wide table. 
+ *
+ * [in]     value[0].a: key to query system table
+ * [in]     value[1].a: Number of bytes to allocate
+ */
+#define PTA_SYSTEM_SHM_OPEN					18
+
+/* alignment requirement for number of bytes, which equals to SMALL_PAGE_SIZE */
+#define PTA_SYSTEM_SHM_OPEN_ALIGNMENT		4096
+
+/*
+ * Destroy a shared memory related to a key in system-wide table.
+ *
+ * [in]     value[0].a: key to query system table
+ */
+#define PTA_SYSTEM_SHM_CLOSE 				19
+
+/*
+ * Map a shared memory related to a key in system-wide table.
+ *
+ * [in]     value[0].a: key to query system table
+ * [out]    value[1].a: Address upper 32-bits
+ * [out]    value[1].b: Address lower 32-bits
+ */
+#define PTA_SYSTEM_SHM_MMAP 				20
+
+/*
+ * Unmap a shared memory related to a key in system-wide table.
+ *
+ * [in]     value[0].a: Address upper 32-bits
+ * [in]     value[0].b: Address lower 32-bits
+ */
+#define PTA_SYSTEM_SHM_MUNMAP 				21
+
 
 #endif /* __PTA_SYSTEM_H */

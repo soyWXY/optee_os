@@ -381,7 +381,7 @@ static TEE_Result system_protmem_alloc(struct user_mode_ctx *uctx,
 	return res;
 }
 
-static TEE_Result system_protmem_free(struct user_mode_ctx *uctx,
+static TEE_Result system_protmem_unmap(struct user_mode_ctx *uctx,
 				uint32_t param_types,
 				TEE_Param params[TEE_NUM_PARAMS])
 {
@@ -425,6 +425,112 @@ static TEE_Result system_protmem_free(struct user_mode_ctx *uctx,
 		return TEE_ERROR_ACCESS_DENIED;
 
 	return vm_unmap(uctx, va, sz);
+}
+
+static TEE_Result system_protmem_free(struct user_mode_ctx *uctx,
+				uint32_t param_types,
+				TEE_Param params[TEE_NUM_PARAMS])
+{
+	return system_protmem_unmap(uctx, param_types, params);
+}
+
+static struct mobj *shm_table[10];
+
+static TEE_Result system_shm_open(uint32_t param_types,
+						TEE_Param params[TEE_NUM_PARAMS])
+{
+	uint32_t exp_pt = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INPUT,
+					  TEE_PARAM_TYPE_VALUE_INPUT,
+					  TEE_PARAM_TYPE_NONE,
+					  TEE_PARAM_TYPE_NONE);
+	uint32_t key = -1;
+	struct mobj *mobj = NULL;
+	size_t num_bytes = 0;
+
+	if (exp_pt != param_types)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	key = params[0].value.a;
+	num_bytes = params[1].value.a;
+	if (key >= ARRAY_SIZE(shm_table))
+		return TEE_ERROR_BAD_PARAMETERS;
+	mobj = shm_table[key];
+	if (num_bytes % SMALL_PAGE_SIZE)
+		return TEE_ERROR_BAD_PARAMETERS;
+	if (mobj)
+		return TEE_ERROR_BUSY;
+
+	mobj = thread_rpc_protmem_alloc(num_bytes);
+	if (!mobj)
+		return TEE_ERROR_OUT_OF_MEMORY;
+	shm_table[key] = mobj;
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result system_shm_close(uint32_t param_types,
+						TEE_Param params[TEE_NUM_PARAMS])
+{
+	uint32_t exp_pt = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INPUT,
+					  TEE_PARAM_TYPE_NONE,
+					  TEE_PARAM_TYPE_NONE,
+					  TEE_PARAM_TYPE_NONE);
+	uint32_t key = -1;
+	struct mobj *mobj = NULL;
+
+	if (exp_pt != param_types)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	key = params[0].value.a;
+	if (key >= ARRAY_SIZE(shm_table))
+		return TEE_ERROR_BAD_PARAMETERS;
+	mobj = shm_table[key];
+	if (!mobj)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	shm_table[key] = NULL;
+	mobj_put(mobj);
+	return TEE_SUCCESS;
+}
+
+static TEE_Result system_shm_mmap(struct user_mode_ctx *uctx,
+				uint32_t param_types,
+				TEE_Param params[TEE_NUM_PARAMS])
+{
+	uint32_t exp_pt = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INPUT,
+					  TEE_PARAM_TYPE_VALUE_OUTPUT,
+					  TEE_PARAM_TYPE_NONE,
+					  TEE_PARAM_TYPE_NONE);
+	TEE_Result res = TEE_ERROR_GENERIC;
+	uint32_t prot = TEE_MATTR_URW | TEE_MATTR_PRW;
+	uint32_t vm_flags = VM_FLAG_PROTMEM;
+	uint32_t key = -1;
+	struct mobj *mobj = NULL;
+	size_t num_bytes = 0;
+	vaddr_t va = 0;
+
+	if (exp_pt != param_types)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	key = params[0].value.a;
+	if (key >= ARRAY_SIZE(shm_table))
+		return TEE_ERROR_BAD_PARAMETERS;
+	mobj = shm_table[key];
+	if (!mobj)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	num_bytes = mobj->size;
+	res = vm_map(uctx, &va, num_bytes, prot, vm_flags, mobj, 0);
+	if (!res)
+		reg_pair_from_64(va, &params[1].value.a, &params[1].value.b);
+	return res;
+}
+
+static TEE_Result system_shm_munmap(struct user_mode_ctx *uctx,
+				uint32_t param_types,
+				TEE_Param params[TEE_NUM_PARAMS])
+{
+	return system_protmem_unmap(uctx, param_types, params);
 }
 
 static TEE_Result open_session(uint32_t param_types __unused,
@@ -471,6 +577,14 @@ static TEE_Result invoke_command(void *sess_ctx __unused, uint32_t cmd_id,
 		return system_protmem_alloc(uctx, param_types, params);
 	case PTA_SYSTEM_PROTMEM_FREE:
 		return system_protmem_free(uctx, param_types, params);
+	case PTA_SYSTEM_SHM_OPEN:
+		return system_shm_open(param_types, params);
+	case PTA_SYSTEM_SHM_CLOSE:
+		return system_shm_close(param_types, params);
+	case PTA_SYSTEM_SHM_MMAP:
+		return system_shm_mmap(uctx, param_types, params);
+	case PTA_SYSTEM_SHM_MUNMAP:
+		return system_shm_munmap(uctx, param_types, params);
 	default:
 		break;
 	}
