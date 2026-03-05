@@ -630,6 +630,8 @@ static void protmem_free_helper(struct mobj_protmem *mobj_protmem)
 	cpu_spin_unlock_xrestore(&reg_shm_map_lock, exceptions);
 
 	restore_mem(mobj_protmem);
+	if (mobj_protmem->use_case == MOBJ_USE_CASE_GENERIC_PROT_MEM)
+		thread_rpc_protmem_free(mobj_protmem->cookie);
 	free(mobj_protmem);
 }
 

@@ -391,7 +391,6 @@ static TEE_Result system_protmem_free(struct user_mode_ctx *uctx,
 					  TEE_PARAM_TYPE_NONE);
 	TEE_Result res = TEE_SUCCESS;
 	uint32_t vm_flags = 0;
-	vaddr_t end_va = 0;
 	vaddr_t va = 0;
 	/*
 	 * set to a huge value so that vm_get_mobj() will always return size
@@ -401,18 +400,16 @@ static TEE_Result system_protmem_free(struct user_mode_ctx *uctx,
 	struct mobj *mobj = NULL;
 	uint16_t _1 = 0;
 	size_t _2 = 0;
-	uint64_t cookie = 0;
 
 	if (exp_pt != param_types)
 		return TEE_ERROR_BAD_PARAMETERS;
 
 	va = reg_pair_to_64(params[0].value.a, params[0].value.b);
 
-	/* acquire mobj cookie without holding mobj's ownership */
+	/* query size of vm */
 	mobj = vm_get_mobj(uctx, va, &sz, &_1, &_2);
 	if (!mobj)
 		return TEE_ERROR_BAD_PARAMETERS;
-	cookie = mobj_get_cookie(mobj);
 	mobj_put(mobj);
 
 	/*
@@ -427,12 +424,7 @@ static TEE_Result system_protmem_free(struct user_mode_ctx *uctx,
 	if (vm_flags != VM_FLAG_PROTMEM)
 		return TEE_ERROR_ACCESS_DENIED;
 
-	res = vm_unmap(uctx, va, sz);
-	if (res)
-		return res;
-
-	thread_rpc_protmem_free(cookie);
-	return TEE_SUCCESS;
+	return vm_unmap(uctx, va, sz);
 }
 
 static TEE_Result open_session(uint32_t param_types __unused,
