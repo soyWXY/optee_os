@@ -113,7 +113,7 @@ CFG_CORE_DUMP_OOM ?= $(CFG_TEE_CORE_MALLOC_DEBUG)
 CFG_MSG_LONG_PREFIX_MASK ?= 0x1a
 
 # Number of threads
-CFG_NUM_THREADS ?= 2
+CFG_NUM_THREADS ?= 4
 
 # API implementation version
 CFG_TEE_API_VERSION ?= GPD-1.1-dev
