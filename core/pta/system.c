@@ -499,14 +499,15 @@ static TEE_Result system_shm_mmap(struct user_mode_ctx *uctx,
 {
 	uint32_t exp_pt = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INPUT,
 					  TEE_PARAM_TYPE_VALUE_OUTPUT,
-					  TEE_PARAM_TYPE_NONE,
+					  TEE_PARAM_TYPE_VALUE_INPUT,
 					  TEE_PARAM_TYPE_NONE);
 	TEE_Result res = TEE_ERROR_GENERIC;
 	uint32_t prot = TEE_MATTR_URW | TEE_MATTR_PRW;
 	uint32_t vm_flags = VM_FLAG_PROTMEM;
 	uint32_t key = -1;
 	struct mobj *mobj = NULL;
-	size_t num_bytes = 0;
+	size_t map_offs = 0;
+	size_t map_size = 0;
 	vaddr_t va = 0;
 
 	if (exp_pt != param_types)
@@ -519,8 +520,15 @@ static TEE_Result system_shm_mmap(struct user_mode_ctx *uctx,
 	if (!mobj)
 		return TEE_ERROR_BAD_PARAMETERS;
 
-	num_bytes = mobj->size;
-	res = vm_map(uctx, &va, num_bytes, prot, vm_flags, mobj, 0);
+	map_size = params[2].value.a;
+	map_offs = params[2].value.b;
+	if (map_size) {
+		res = vm_map_pad(uctx, &va, map_size, prot, vm_flags,
+					mobj, map_offs, 0, 0, 0);
+	} else {
+		res = vm_map(uctx, &va, mobj->size, prot, vm_flags, mobj, 0);
+	}
+
 	if (!res)
 		reg_pair_from_64(va, &params[1].value.a, &params[1].value.b);
 	return res;

@@ -254,8 +254,13 @@
  * [in]     value[0].a: key to query system table
  * [out]    value[1].a: Address upper 32-bits
  * [out]    value[1].b: Address lower 32-bits
+ * [in]     value[2].a: map size. If this equals to 0, map the whole mobj.
+ * [in]     value[2].b: offset relative to mobj
  */
 #define PTA_SYSTEM_SHM_MMAP 				20
+
+/* alignment requirement for "map size" and "offset", which equals to SMALL_PAGE_SIZE */
+#define PTA_SYSTEM_SHM_MMAP_ALIGNMENT		4096
 
 /*
  * Unmap a shared memory related to a key in system-wide table.
